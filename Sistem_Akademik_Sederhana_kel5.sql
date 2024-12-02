@@ -137,3 +137,76 @@ LEFT JOIN
 ON 
     nl.id_matakuliah = mk.id_matakuliah;
 
+-- VIEW --
+-- 1. membuat view untuk menampilkan data mahasiswa -- 
+CREATE VIEW view_mahasiswa AS
+SELECT 
+    NIM,
+    nama_mhs,
+    prodi,
+    jenis_kelamin,
+    email_mhs,
+    kelas
+FROM 
+    mahasiswa;
+SELECT * FROM view_mahasiswa;
+
+-- 2. Menampilkan data mata kuliah 
+CREATE VIEW view_matakuliah AS
+SELECT 
+    id_matakuliah,
+    nama_matakuliah,
+    jumlah_sks,
+    dosen
+FROM 
+    matakuliah;
+SELECT * FROM view_matakuliah;
+
+-- 3. Menampilkan Nilai mahasiswa -- 
+CREATE VIEW view_nilai_mhs AS
+SELECT 
+    n.NIM, m.nama_mhs, mk.nama_matakuliah, n.nilai
+FROM nilai n JOIN mahasiswa m ON n.NIM = m.NIM
+JOIN matakuliah mk ON n.id_matakuliah = mk.id_matakuliah;
+SELECT * FROM view_nilai_mhs;
+
+-- 4. Menampilkan nilai mahasiswa berdasarkan kelas -- 
+CREATE VIEW view_nilai_mahasiswa_per_kelas AS
+SELECT a.kelas, a.NIM, a.nama_mhs, mk.nama_matakuliah, n.nilai
+FROM mahasiswa a JOIN nilai n ON a.NIM = n.NIM
+JOIN  matakuliah mk ON n.id_matakuliah = mk.id_matakuliah
+ORDER BY a.kelas, a.NIM;
+SELECT * FROM view_nilai_mahasiswa_per_kelas;
+
+-- 5. Menampilkan Rata-rata nilai mahasiswa-
+CREATE VIEW rata_nilai AS
+SELECT 
+    NIM, AVG(nilai) AS rata_rata_nilai
+FROM  nilai GROUP BY  NIM;
+SELECT * FROM rata_nilai;
+
+-- 6. Menampilkan mahasiswa yang hanya berjenis kelamin laki-laki
+CREATE VIEW view_mahasiswa_laki_laki AS
+SELECT 
+    NIM,
+    nama_mhs,
+    prodi,
+    kelas,
+    email_mhs
+FROM mahasiswa
+WHERE jenis_kelamin = 'L';
+
+SELECT * FROM view_mahasiswa_laki_laki;
+
+-- 7. Menampilkan mahasiswa yang hanya berjenis kelamin perempuan
+CREATE VIEW view_mahasiswa_perempuan AS
+SELECT 
+    NIM,
+    nama_mhs,
+    prodi,
+    kelas,
+    email_mhs
+FROM mahasiswa
+WHERE jenis_kelamin = 'P';
+
+SELECT * FROM view_mahasiswa_perempuan;
