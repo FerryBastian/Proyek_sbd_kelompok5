@@ -210,3 +210,153 @@ FROM mahasiswa
 WHERE jenis_kelamin = 'P';
 
 SELECT * FROM view_mahasiswa_perempuan;
+
+-- TRIGGER --
+-- 1. Trigger untuk mencatat setiap perubahan atau penambahan nilai
+CREATE TABLE log_nilai (
+    id SERIAL PRIMARY KEY,
+    nim VARCHAR(10),
+    id_matakuliah VARCHAR(10),
+    nilai_lama INT,
+    nilai_baru INT,
+    waktu_perubahan TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Fungsi untuk mencatat log
+CREATE OR REPLACE FUNCTION update_nilai()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Masukkan data perubahan ke tabel log_nilai
+    INSERT INTO log_nilai (nim, id_matakuliah, nilai_lama, nilai_baru)
+    VALUES (OLD.NIM, OLD.id_matakuliah, OLD.nilai, NEW.nilai);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger untuk memanggil fungsi
+CREATE TRIGGER nilai_update_trigger
+AFTER UPDATE ON nilai
+FOR EACH ROW
+EXECUTE FUNCTION update_nilai();
+
+-- Uji trigger
+UPDATE nilai SET nilai = 95 WHERE NIM = '11323010' AND id_matakuliah = 'MK001';
+-- Cek tabel
+SELECT * FROM log_nilai;
+
+-- AUTHORIZATION --
+CREATE USER user_mhs with password 'mhs123';
+-- Berikan akses atau izin
+GRANT SELECT ON mahasiswa, matakuliah, nilai to user_mhs;
+-- Set role nya menjadi user_mhs
+SET ROLE user_mhs;
+-- Uji Authorization
+SELECT * FROM nilai;
+INSERT INTO nilai VALUES(20, '11323010', 'MK001');
+-- Reset role
+RESET ROLE;
+
+-- TRANSACTION --
+-- Mulai transaksi
+BEGIN;
+
+-- Tambahkan data ke tabel mahasiswa
+INSERT INTO mahasiswa (NIM, nama_mhs, prodi, jenis_kelamin, email_mhs, kelas)
+VALUES ('11S23001', 'Dodi', 'Informatika', 'L', 'dodi@itdel.ac.id', '32IF2');
+
+-- Tambahkan data ke tabel nilai
+INSERT INTO nilai (nilai, NIM, id_matakuliah)
+VALUES (60, '11S23001', 'MK005');
+
+-- Jika semua berhasil, commit transaksi
+COMMIT;
+-- Jika tidak berhasil, rollback transaksi
+ROLLBACK;
+-- Cek hasil transaksi
+SELECT * FROM mahasiswa where nama_mhs = 'Dodi';
+
+-- ERROR HANDLING TRANSACTION--
+DO $$
+BEGIN
+    -- Mulai transaksi
+    BEGIN
+
+    -- Tambahkan data ke tabel mahasiswa
+    INSERT INTO mahasiswa (NIM, nama_mhs, prodi, jenis_kelamin, email_mhs, kelas)
+    VALUES ('11323060', 'Joniana', 'Teknologi Informasi', 'P', 'nianadisini@itdel.ac.id', '32TI2');
+
+    -- Tambahkan data ke tabel nilai
+    INSERT INTO nilai (nilai, NIM, id_matakuliah)
+    VALUES (100, '11323060', 'MK008');
+
+    -- Commit transaksi jika semua berhasil
+    COMMIT;
+
+    RAISE NOTICE 'Data berhasil disimpan.';
+EXCEPTION WHEN OTHERS THEN
+    -- Rollback jika ada kesalahan
+    ROLLBACK;
+    RAISE NOTICE 'Terjadi kesalahan: %', SQLERRM;
+END; 
+END $$;
+
+-- FITUR UTAMA --
+-- 1. Fungsi menghitung IPK otomatis
+
+-- Tambahkan kolom ipk ke tabel mahasiswa
+ALTER TABLE mahasiswa ADD COLUMN ipk DECIMAL;
+-- Function untuk menghitung IPK
+CREATE OR REPLACE FUNCTION hitung_ipk()
+RETURNS TRIGGER AS $$
+DECLARE
+    total_bobot DECIMAL := 0;
+    total_sks INT := 0;
+BEGIN
+    -- Menghitung total bobot dan total SKS
+    SELECT 
+        SUM(CASE 
+            WHEN n.nilai >= 79.5 THEN 4.0 * mk.jumlah_sks
+            WHEN n.nilai >= 72 AND n.nilai < 79.5 THEN 3.5 * mk.jumlah_sks
+            WHEN n.nilai >= 64.5 AND n.nilai < 72 THEN 3.0 * mk.jumlah_sks
+            WHEN n.nilai >= 57 AND n.nilai < 64.5 THEN 2.5 * mk.jumlah_sks
+            WHEN n.nilai >= 49.5 AND n.nilai < 57 THEN 2.0 * mk.jumlah_sks
+            WHEN n.nilai >= 34 AND n.nilai < 49.5 THEN 1.0 * mk.jumlah_sks
+            WHEN n.nilai >= 0 AND n.nilai < 34 THEN 0.0 * mk.jumlah_sks
+            ELSE 0.0
+        END),
+        SUM(mk.jumlah_sks)
+    INTO 
+        total_bobot, total_sks
+    FROM 
+        nilai n
+    JOIN 
+        matakuliah mk ON n.id_matakuliah = mk.id_matakuliah
+    WHERE 
+        n.NIM = NEW.NIM;
+
+    -- Menghindari pembagian dengan nol dan memperbarui IPK
+    IF total_sks = 0 THEN
+        UPDATE mahasiswa SET ipk = 0 WHERE NIM = NEW.NIM;
+    ELSE
+        UPDATE mahasiswa SET ipk = total_bobot / total_sks WHERE NIM = NEW.NIM;
+    END IF;
+
+    RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql;
+
+-- Trigger untuk tabel nilai
+CREATE TRIGGER trigger_hitung_ipk
+AFTER INSERT OR UPDATE OR DELETE
+ON nilai
+FOR EACH ROW
+EXECUTE FUNCTION hitung_ipk();
+
+-- Uji
+-- Perbarui nilai nim 11323010
+UPDATE nilai SET nilai = 90 WHERE nim = '11323010';
+-- Cek tabel mahasiswa
+select * from mahasiswa where nim = '11323010';
+
+-- 2.Menampilkan data mahasiswa berdasarkan kriteria tertentu.
