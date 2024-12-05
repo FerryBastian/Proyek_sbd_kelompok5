@@ -38,11 +38,12 @@ CREATE TABLE matakuliah (
 );
 
 CREATE TABLE nilai (
-	nilai INT CHECK (nilai >= 0 AND nilai <= 100),
+	nilai NUMERIC(10, 2) CHECK (nilai >= 0 AND nilai <= 100),
 	NIM VARCHAR(10),
-	id_matakuliah VARCHAR(10),
-	Foreign Key (NIM) references mahasiswa(NIM) ON DELETE CASCADE,
-	foreign key (id_matakuliah) references matakuliah(id_matakuliah) ON DELETE CASCADE
+    id_matakuliah VARCHAR(10),
+    Foreign Key (NIM) references mahasiswa(NIM) ON DELETE CASCADE,
+    foreign key (id_matakuliah) references matakuliah(id_matakuliah) ON DELETE CASCADE
+
 );
 
 -- insert dummy data --
@@ -170,46 +171,13 @@ FROM nilai n JOIN mahasiswa m ON n.NIM = m.NIM
 JOIN matakuliah mk ON n.id_matakuliah = mk.id_matakuliah;
 SELECT * FROM view_nilai_mhs;
 
--- 4. Menampilkan nilai mahasiswa berdasarkan kelas -- 
-CREATE VIEW view_nilai_mahasiswa_per_kelas AS
-SELECT a.kelas, a.NIM, a.nama_mhs, mk.nama_matakuliah, n.nilai
-FROM mahasiswa a JOIN nilai n ON a.NIM = n.NIM
-JOIN  matakuliah mk ON n.id_matakuliah = mk.id_matakuliah
-ORDER BY a.kelas, a.NIM;
-SELECT * FROM view_nilai_mahasiswa_per_kelas;
-
--- 5. Menampilkan Rata-rata nilai mahasiswa-
+-- 4. Menampilkan Rata-rata nilai mahasiswa-
 CREATE VIEW rata_nilai AS
 SELECT 
     NIM, AVG(nilai) AS rata_rata_nilai
 FROM  nilai GROUP BY  NIM;
 SELECT * FROM rata_nilai;
 
--- 6. Menampilkan mahasiswa yang hanya berjenis kelamin laki-laki
-CREATE VIEW view_mahasiswa_laki_laki AS
-SELECT 
-    NIM,
-    nama_mhs,
-    prodi,
-    kelas,
-    email_mhs
-FROM mahasiswa
-WHERE jenis_kelamin = 'L';
-
-SELECT * FROM view_mahasiswa_laki_laki;
-
--- 7. Menampilkan mahasiswa yang hanya berjenis kelamin perempuan
-CREATE VIEW view_mahasiswa_perempuan AS
-SELECT 
-    NIM,
-    nama_mhs,
-    prodi,
-    kelas,
-    email_mhs
-FROM mahasiswa
-WHERE jenis_kelamin = 'P';
-
-SELECT * FROM view_mahasiswa_perempuan;
 
 -- TRIGGER --
 -- 1. Trigger untuk mencatat setiap perubahan atau penambahan nilai
@@ -217,8 +185,8 @@ CREATE TABLE log_nilai (
     id SERIAL PRIMARY KEY,
     nim VARCHAR(10),
     id_matakuliah VARCHAR(10),
-    nilai_lama INT,
-    nilai_baru INT,
+    nilai_lama NUMERIC(10, 2),
+    nilai_baru NUMERIC(10, 2),
     waktu_perubahan TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -300,11 +268,86 @@ EXCEPTION WHEN OTHERS THEN
 END; 
 END $$;
 
+-- STORED PROCEDURE --
+-- Menambahkan mahasiswa baru dengan validasi
+CREATE OR REPLACE PROCEDURE tambah_mahasiswa(
+    p_nim VARCHAR(10), 
+    p_nama VARCHAR(100), 
+    p_prodi VARCHAR(50), 
+    p_jenis_kelamin CHAR(1), 
+    p_email VARCHAR(100), 
+    p_kelas VARCHAR(10)
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Validasi input
+    IF p_jenis_kelamin NOT IN ('L', 'P') THEN
+        RAISE EXCEPTION 'Jenis kelamin harus "L" (Laki-laki) atau "P" (Perempuan)';
+    END IF;
+
+    -- Cek apakah NIM sudah ada
+    IF EXISTS (SELECT 1 FROM mahasiswa WHERE NIM = p_nim) THEN
+        RAISE EXCEPTION 'NIM % sudah terdaftar', p_nim;
+    END IF;
+
+    -- Tambahkan mahasiswa baru
+    INSERT INTO mahasiswa (
+        NIM, 
+        nama_mhs, 
+        prodi, 
+        jenis_kelamin, 
+        email_mhs, 
+        kelas
+    ) VALUES (
+        p_nim, 
+        p_nama, 
+        p_prodi, 
+        p_jenis_kelamin, 
+        p_email, 
+        p_kelas
+    );
+
+    -- Tampilkan pesan sukses
+    RAISE NOTICE 'Mahasiswa % berhasil ditambahkan', p_nama;
+END;
+$$;
+
+-- Contoh penggunaan stored procedure
+CALL tambah_mahasiswa(
+    '11323099',
+    'Baru Sekali',
+    'Teknologi Informasi',
+    'L',
+    'baru@itdel.ac.id',
+    '32TI2'
+);
+
+
+-- CURSOR -- 
+-- menampilkan data mahasiswa beserta nilai mereka pada setiap mata kuliah. --
+DO $$
+DECLARE
+    studentRecord RECORD;
+BEGIN
+    -- Cursor untuk membaca data mahasiswa dan nilai mereka
+    FOR studentRecord IN
+        SELECT m.nim, m.nama_mhs, m.prodi, mk.nama_matakuliah, n.nilai
+        FROM mahasiswa m
+        JOIN nilai n ON m.nim = n.nim
+        JOIN matakuliah mk ON n.id_matakuliah = mk.id_matakuliah
+    LOOP
+        -- Cetak data setiap baris yang diambil
+        RAISE NOTICE 'NIM: %, Nama: %, Prodi: %, Mata Kuliah: %, Nilai: %',
+            studentRecord.nim, studentRecord.nama_mhs, studentRecord.prodi,
+            studentRecord.nama_matakuliah, studentRecord.nilai;
+    END LOOP;
+END $$;
+
 -- FITUR UTAMA --
 -- 1. Fungsi menghitung IPK otomatis
-
 -- Tambahkan kolom ipk ke tabel mahasiswa
-ALTER TABLE mahasiswa ADD COLUMN ipk DECIMAL;
+ALTER TABLE mahasiswa ADD COLUMN ipk NUMERIC(10, 2);
 -- Function untuk menghitung IPK
 CREATE OR REPLACE FUNCTION hitung_ipk()
 RETURNS TRIGGER AS $$
@@ -360,3 +403,28 @@ UPDATE nilai SET nilai = 90 WHERE nim = '11323010';
 select * from mahasiswa where nim = '11323010';
 
 -- 2.Menampilkan data mahasiswa berdasarkan kriteria tertentu.
+--Menampilkan mahasiswa yang hanya berjenis kelamin laki-laki
+CREATE VIEW view_mahasiswa_laki_laki AS
+SELECT NIM, nama_mhs, prodi, kelas, email_mhs
+FROM mahasiswa WHERE jenis_kelamin = 'L';
+SELECT * FROM view_mahasiswa_laki_laki;
+
+--Menampilkan mahasiswa yang hanya berjenis kelamin perempuan
+CREATE VIEW view_mahasiswa_perempuan AS
+SELECT NIM, nama_mhs, prodi, kelas, email_mhs
+FROM mahasiswa WHERE jenis_kelamin = 'P';
+SELECT * FROM view_mahasiswa_perempuan;
+
+--Menampilkan nilai mahasiswa berdasarkan kelas -- 
+CREATE VIEW view_nilai_mahasiswa_per_kelas AS
+SELECT a.kelas, a.NIM, a.nama_mhs, mk.nama_matakuliah, n.nilai
+FROM mahasiswa a JOIN nilai n ON a.NIM = n.NIM
+JOIN  matakuliah mk ON n.id_matakuliah = mk.id_matakuliah
+ORDER BY a.kelas, a.NIM;
+SELECT * FROM view_nilai_mahasiswa_per_kelas;
+
+--Menampilkan data mahasiswa berdasarkan IPK Tertinggi -- 
+CREATE VIEW view_mahasiswa_ipk_tertinggi AS
+SELECT NIM, nama_mhs, prodi, jenis_kelamin, kelas, email_mhs, ipk
+FROM mahasiswa WHERE ipk = '4';
+SELECT * FROM view_mahasiswa_ipk_tertinggi;
