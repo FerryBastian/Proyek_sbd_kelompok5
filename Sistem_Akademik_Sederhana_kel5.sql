@@ -46,6 +46,15 @@ CREATE TABLE nilai (
 
 );
 
+CREATE TABLE jadwal_mata_kuliah (
+    id SERIAL PRIMARY KEY,
+    Tanggal DATE,
+    Hari TEXT,
+    "Mata Kuliah" TEXT,
+    Waktu TEXT,
+    Ruangan TEXT
+);
+
 -- insert dummy data --
 INSERT INTO mahasiswa (NIM, nama_mhs, prodi, jenis_kelamin, email_mhs, kelas)
 VALUES
@@ -109,9 +118,21 @@ VALUES
 (87, '13323046', 'MK002'),
 (79, '13323041', 'MK003');
 
+INSERT INTO jadwal_mata_kuliah (Tanggal, Hari, "Mata Kuliah", Waktu, Ruangan) VALUES
+('2024-08-20', 'Selasa', 'PBO(T)', '08:00-08:50', 'GD 525'),
+('2024-08-20', 'Selasa', 'IoT(T)', '09:00-09:50', 'GD 525'),
+('2024-08-20', 'Selasa', 'SKADA(P)', '10:00-10:50', 'GD 516'),
+('2024-08-20', 'Selasa', 'SKADA(P)', '11:00-11:50', 'GD 516'),
+('2024-08-20', 'Selasa', 'PBO(P)', '13:00-13:50', 'GD 526'),
+('2024-08-20', 'Selasa', 'PBO(P)', '14:00-14:50', 'GD 526'),
+('2024-08-20', 'Selasa', 'JARKOM(P)', '15:00-15:50', 'GD 527'),
+('2024-08-20', 'Selasa', 'JARKOM(P)', '15:50-16:50', 'GD 527'),
+('2024-09-10', 'Selasa', 'PBO(T)', '08:00-08:50', 'GD 525');
+
 SELECT * FROM mahasiswa;
 SELECT * FROM matakuliah;
 SELECT * FROM nilai;
+SELECT * FROM jadwal_mata_kuliah;
 
 
 -- join menampilkan semua data dari ketiga tabel --
